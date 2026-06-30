@@ -16,7 +16,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <!-- jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <link rel="stylesheet" href="styles.css?v=2.6">
+    <link rel="stylesheet" href="styles.css?v=2.8">
 </head>
 <body>
     <div class="app-container">
@@ -84,11 +84,21 @@
                         </button>
                     </div>
                     <p class="control-desc">Drag the vertical guides on the PDF to align them with your document's columns.</p>
-                    <div class="guide-coordinates">
-                        <div class="coord-item"><span>Col 1</span><span id="coordVal0">20%</span></div>
-                        <div class="coord-item"><span>Col 2</span><span id="coordVal1">40%</span></div>
-                        <div class="coord-item"><span>Col 3</span><span id="coordVal2">60%</span></div>
-                        <div class="coord-item"><span>Col 4</span><span id="coordVal3">80%</span></div>
+                    <div class="guide-coordinates" id="guideCoordinatesContainer">
+                        <!-- Coordinates generated dynamically in app.js -->
+                    </div>
+                </div>
+
+                <!-- Column Layout Control -->
+                <div class="card control-card">
+                    <h3 class="card-title"><i data-lucide="columns"></i> Column Layout</h3>
+                    <p class="control-desc">Select the number of columns in your document.</p>
+                    <div class="column-selector">
+                        <button class="col-btn" data-cols="1">1 Col</button>
+                        <button class="col-btn" data-cols="2">2 Col</button>
+                        <button class="col-btn" data-cols="3">3 Col</button>
+                        <button class="col-btn" data-cols="4">4 Col</button>
+                        <button class="col-btn active" data-cols="5">5 Col</button>
                     </div>
                 </div>
 
@@ -204,23 +214,8 @@
                         
                         <!-- Interactive Guides & Click Overlay -->
                         <div class="interactive-overlay" id="interactiveOverlay">
-                            <!-- Vertical Guidelines -->
-                            <div class="guide-vertical" id="guideV0" data-index="0">
-                                <div class="guide-line"></div>
-                                <div class="guide-handle">⋮</div>
-                            </div>
-                            <div class="guide-vertical" id="guideV1" data-index="1">
-                                <div class="guide-line"></div>
-                                <div class="guide-handle">⋮</div>
-                            </div>
-                            <div class="guide-vertical" id="guideV2" data-index="2">
-                                <div class="guide-line"></div>
-                                <div class="guide-handle">⋮</div>
-                            </div>
-                            <div class="guide-vertical" id="guideV3" data-index="3">
-                                <div class="guide-line"></div>
-                                <div class="guide-handle">⋮</div>
-                            </div>
+                            <!-- Dynamic Vertical Guidelines Container -->
+                            <div id="verticalGuidesContainer"></div>
 
                             <!-- Click Preview Line (follows mouse horizontally) -->
                             <div class="horizontal-preview-line" id="hPreviewLine" style="display: none;"></div>
@@ -283,6 +278,6 @@
     <!-- Hidden Export Canvas for High DPI Rendering -->
     <canvas id="pdfExportCanvas" style="display: none;"></canvas>
 
-    <script src="app.js?v=2.6"></script>
+    <script src="app.js?v=2.8"></script>
 </body>
 </html>

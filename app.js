@@ -162,14 +162,28 @@ function loadPDF(file) {
 }
 
 function resetState() {
-    verticalLines = [20, 40, 60, 80];
-    horizontalSplits = [[], [], [], [], []];
+    const activeColBtn = document.querySelector('.col-btn.active');
+    const colCount = activeColBtn ? parseInt(activeColBtn.dataset.cols) : 5;
+    
+    if (colCount === 1) {
+        verticalLines = [];
+    } else if (colCount === 2) {
+        verticalLines = [50];
+    } else if (colCount === 3) {
+        verticalLines = [33.3, 66.6];
+    } else if (colCount === 4) {
+        verticalLines = [25, 50, 75];
+    } else {
+        verticalLines = [20, 40, 60, 80];
+    }
+    
+    horizontalSplits = Array.from({ length: colCount }, () => []);
     crops = [];
     zoomScale = 1.0;
     historyStack = [JSON.stringify(horizontalSplits)];
     redoStack = [];
     updateZoomDisplay();
-    updateCoordinateLabels();
+    initVerticalGuides();
 }
 
 function updateZoomDisplay() {
@@ -239,26 +253,68 @@ function renderCurrentPage() {
 
 function setupInteractiveOverlay() {
     // Position vertical guide lines
-    updateVerticalGuides();
+    initVerticalGuides();
     renderHorizontalSplits();
     renderSegments();
+}
+
+function initVerticalGuides() {
+    if (!verticalGuidesContainer) return;
+    verticalGuidesContainer.innerHTML = '';
+    
+    if (guideCoordinatesContainer) {
+        guideCoordinatesContainer.innerHTML = '';
+    }
+    
+    verticalLines.forEach((pct, idx) => {
+        // 1. Create guide element
+        const guide = document.createElement('div');
+        guide.className = 'guide-vertical';
+        guide.id = `guideV${idx}`;
+        guide.dataset.index = idx;
+        guide.style.left = `${pct}%`;
+        
+        guide.innerHTML = `
+            <div class="guide-line"></div>
+            <div class="guide-handle">⋮</div>
+        `;
+        
+        // Drag handler
+        guide.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            draggingIdx = idx;
+            guide.classList.add('dragging');
+        });
+        
+        verticalGuidesContainer.appendChild(guide);
+        
+        // 2. Create coordinate item
+        if (guideCoordinatesContainer) {
+            const item = document.createElement('div');
+            item.className = 'coord-item';
+            item.innerHTML = `<span>Line ${idx + 1}</span><span id="coordVal${idx}">${Math.round(pct)}%</span>`;
+            guideCoordinatesContainer.appendChild(item);
+        }
+    });
+    
+    // If single column, show message
+    if (guideCoordinatesContainer && verticalLines.length === 0) {
+        guideCoordinatesContainer.innerHTML = `<div class="single-col-msg" style="font-size:0.75rem; color:var(--text-muted); font-style:italic;">Single Column Mode (No vertical lines)</div>`;
+    }
 }
 
 function updateVerticalGuides() {
     verticalLines.forEach((pct, idx) => {
         const guideEl = document.getElementById(`guideV${idx}`);
-        guideEl.style.left = `${pct}%`;
+        if (guideEl) guideEl.style.left = `${pct}%`;
         
         const coordLabel = document.getElementById(`coordVal${idx}`);
-        coordLabel.textContent = `${Math.round(pct)}%`;
+        if (coordLabel) coordLabel.textContent = `${Math.round(pct)}%`;
     });
 }
 
 function updateCoordinateLabels() {
-    verticalLines.forEach((pct, idx) => {
-        const coordLabel = document.getElementById(`coordVal${idx}`);
-        if (coordLabel) coordLabel.textContent = `${Math.round(pct)}%`;
-    });
+    updateVerticalGuides();
 }
 
 // Draw user horizontal split lines
@@ -267,7 +323,7 @@ function renderHorizontalSplits() {
     
     horizontalSplits.forEach((splitsList, colIdx) => {
         const colStartX = colIdx === 0 ? 0 : verticalLines[colIdx - 1];
-        const colEndX = colIdx === 4 ? 100 : verticalLines[colIdx];
+        const colEndX = colIdx === verticalLines.length ? 100 : verticalLines[colIdx];
         const colWidth = colEndX - colStartX;
         
         splitsList.forEach((yPct) => {
@@ -357,7 +413,7 @@ function renderSegments() {
     
     horizontalSplits.forEach((splitsList, colIdx) => {
         const colStartX = colIdx === 0 ? 0 : verticalLines[colIdx - 1];
-        const colEndX = colIdx === 4 ? 100 : verticalLines[colIdx];
+        const colEndX = colIdx === verticalLines.length ? 100 : verticalLines[colIdx];
         const colWidth = colEndX - colStartX;
         
         // We only render segments between consecutive splits!
@@ -389,18 +445,7 @@ function removeSplitLine(colIdx, yPct) {
     renderSegments();
 }
 
-// --- Dragging Vertical Lines ---
-
 let draggingIdx = null;
-
-// Attach listeners to vertical guidelines
-document.querySelectorAll('.guide-vertical').forEach(guide => {
-    guide.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        draggingIdx = parseInt(guide.dataset.index);
-        guide.classList.add('dragging');
-    });
-});
 
 document.addEventListener('mousemove', (e) => {
     if (draggingIdx === null) {
@@ -415,7 +460,7 @@ document.addEventListener('mousemove', (e) => {
     
     // Bounds constraints
     const minPct = draggingIdx === 0 ? 2 : verticalLines[draggingIdx - 1] + 2;
-    const maxPct = draggingIdx === 3 ? 98 : verticalLines[draggingIdx + 1] - 2;
+    const maxPct = draggingIdx === verticalLines.length - 1 ? 98 : verticalLines[draggingIdx + 1] - 2;
     
     dragPct = Math.max(minPct, Math.min(maxPct, dragPct));
     
@@ -512,7 +557,7 @@ prevPageBtn.addEventListener('click', () => {
     if (currentPage > 1) {
         currentPage--;
         currentPageNumEl.textContent = currentPage;
-        horizontalSplits = [[], [], [], [], []];
+        horizontalSplits = Array.from({ length: verticalLines.length + 1 }, () => []);
         historyStack = [JSON.stringify(horizontalSplits)];
         redoStack = [];
         renderCurrentPage();
@@ -524,7 +569,7 @@ nextPageBtn.addEventListener('click', () => {
     if (currentPage < totalPages) {
         currentPage++;
         currentPageNumEl.textContent = currentPage;
-        horizontalSplits = [[], [], [], [], []];
+        horizontalSplits = Array.from({ length: verticalLines.length + 1 }, () => []);
         historyStack = [JSON.stringify(horizontalSplits)];
         redoStack = [];
         renderCurrentPage();
@@ -575,7 +620,7 @@ function generateCrops() {
             
             horizontalSplits.forEach((splitsList, colIdx) => {
                 const colStartX = colIdx === 0 ? 0 : verticalLines[colIdx - 1];
-                const colEndX = colIdx === 4 ? 100 : verticalLines[colIdx];
+                const colEndX = colIdx === verticalLines.length ? 100 : verticalLines[colIdx];
                 
                 // Only loop over splitsList (we only crop between user split lines)
                 for (let i = 0; i < splitsList.length - 1; i++) {
@@ -1086,7 +1131,8 @@ function saveSession() {
         exportScale,
         baseName: baseFileNameInput ? baseFileNameInput.value : '',
         startNumber: startNumberInput ? startNumberInput.value : '1',
-        autoNumber: autoNumberToggle ? autoNumberToggle.checked : true
+        autoNumber: autoNumberToggle ? autoNumberToggle.checked : true,
+        columnCount: verticalLines.length + 1
     };
     localStorage.setItem(`pdf_crop_session_${pdfFileName}`, JSON.stringify(sessionData));
 }
@@ -1103,6 +1149,16 @@ function loadSession() {
             zoomScale = sessionData.zoomScale || 1.0;
             exportScale = sessionData.exportScale || 3.0;
             
+            const colCount = sessionData.columnCount || (verticalLines.length + 1);
+            
+            // Sync column button state
+            document.querySelectorAll('.col-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (parseInt(btn.dataset.cols) === colCount) {
+                    btn.classList.add('active');
+                }
+            });
+            
             if (baseFileNameInput && sessionData.baseName !== undefined) {
                 baseFileNameInput.value = sessionData.baseName;
             }
@@ -1116,7 +1172,7 @@ function loadSession() {
             // Sync UI
             currentPageNumEl.textContent = currentPage;
             updateZoomDisplay();
-            updateVerticalGuides();
+            initVerticalGuides();
             
             // Update quality buttons active class
             document.querySelectorAll('.quality-btn').forEach(btn => {
@@ -1330,3 +1386,44 @@ if (autoNumberToggle) {
 
 // Load profiles from storage initially
 loadProfilesFromStorage();
+
+// --- Column Selector Controls ---
+
+function setColumns(count, resetSplits = true) {
+    document.querySelectorAll('.col-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (parseInt(btn.dataset.cols) === count) {
+            btn.classList.add('active');
+        }
+    });
+    
+    if (resetSplits) {
+        if (count === 1) {
+            verticalLines = [];
+        } else if (count === 2) {
+            verticalLines = [50];
+        } else if (count === 3) {
+            verticalLines = [33.3, 66.6];
+        } else if (count === 4) {
+            verticalLines = [25, 50, 75];
+        } else {
+            verticalLines = [20, 40, 60, 80];
+        }
+        
+        horizontalSplits = Array.from({ length: count }, () => []);
+        historyStack = [JSON.stringify(horizontalSplits)];
+        redoStack = [];
+    }
+    
+    initVerticalGuides();
+    renderHorizontalSplits();
+    renderSegments();
+    saveSession();
+}
+
+document.querySelectorAll('.col-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const count = parseInt(btn.dataset.cols);
+        setColumns(count, true);
+    });
+});
