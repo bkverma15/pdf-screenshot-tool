@@ -14,7 +14,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- JSZip -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <link rel="stylesheet" href="styles.css?v=2.4">
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="stylesheet" href="styles.css?v=2.5">
 </head>
 <body>
     <div class="app-container">
@@ -26,6 +28,7 @@
                     <span>PDF CropSnap</span>
                 </div>
                 <p class="tagline">Extract high-quality PNG segments from PDF columns</p>
+                <div class="credits-nobita">Created by <span>Nobita</span></div>
             </div>
 
             <!-- Upload Panel -->
@@ -115,6 +118,25 @@
                         <div class="start-number-row">
                             <span class="start-label">Start Number:</span>
                             <input type="number" id="startNumberInput" value="1" min="1" class="form-input start-num-input">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Layout Profiles Control -->
+                <div class="card control-card">
+                    <h3 class="card-title"><i data-lucide="layout"></i> Layout Profiles</h3>
+                    <p class="control-desc">Save and apply custom vertical column settings.</p>
+                    <div class="profile-controls">
+                        <select id="profileSelect" class="form-input" style="width: 100%; margin-bottom: 8px;">
+                            <option value="default">Default 5 Columns</option>
+                        </select>
+                        <div class="profile-buttons-row" style="display: flex; gap: 8px; justify-content: flex-end;">
+                            <button class="btn btn-secondary btn-xs" id="saveProfileBtn">
+                                <i data-lucide="plus"></i> Save
+                            </button>
+                            <button class="btn btn-danger btn-xs" id="deleteProfileBtn">
+                                <i data-lucide="trash-2"></i> Delete
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -234,6 +256,9 @@
                     <button class="btn btn-secondary" id="backToEditorBtn">
                         <i data-lucide="arrow-left"></i> Edit Cuts
                     </button>
+                    <button class="btn btn-secondary" id="downloadPdfBtn">
+                        <i data-lucide="file-text"></i> Compile PDF
+                    </button>
                     <button class="btn btn-success" id="downloadZipBtn">
                         <i data-lucide="download"></i> Download All (ZIP)
                     </button>
@@ -262,6 +287,6 @@
     <!-- Hidden Export Canvas for High DPI Rendering -->
     <canvas id="pdfExportCanvas" style="display: none;"></canvas>
 
-    <script src="app.js?v=2.4"></script>
+    <script src="app.js?v=2.5"></script>
 </body>
 </html>

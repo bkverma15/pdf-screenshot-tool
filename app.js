@@ -15,6 +15,15 @@ let verticalLines = [20, 40, 60, 80];
 let horizontalSplits = [[], [], [], [], []]; // 5 columns (index 0 to 4)
 let crops = []; // List of cropped image objects
 
+// History Stack (Undo/Redo)
+let historyStack = [];
+let redoStack = [];
+
+// Layout Profiles
+let profiles = {
+    'default': [20, 40, 60, 80]
+};
+
 // DOM Elements
 const dropzone = document.getElementById('dropzone');
 const browseBtn = document.getElementById('browseBtn');
@@ -48,6 +57,7 @@ const previewGrid = document.getElementById('previewGrid');
 const cropCountText = document.getElementById('cropCountText');
 const backToEditorBtn = document.getElementById('backToEditorBtn');
 const downloadZipBtn = document.getElementById('downloadZipBtn');
+const downloadPdfBtn = document.getElementById('downloadPdfBtn');
 const clearAllCropsBtn = document.getElementById('clearAllCropsBtn');
 const generateCropsBtn = document.getElementById('generateCropsBtn');
 
@@ -55,6 +65,10 @@ const baseFileNameInput = document.getElementById('baseFileNameInput');
 const autoNumberToggle = document.getElementById('autoNumberToggle');
 const startNumberInput = document.getElementById('startNumberInput');
 const mergeSelectedBtn = document.getElementById('mergeSelectedBtn');
+
+const profileSelect = document.getElementById('profileSelect');
+const saveProfileBtn = document.getElementById('saveProfileBtn');
+const deleteProfileBtn = document.getElementById('deleteProfileBtn');
 
 const zoomOutBtn = document.getElementById('zoomOutBtn');
 const zoomInBtn = document.getElementById('zoomInBtn');
@@ -129,6 +143,9 @@ function loadPDF(file) {
                 baseFileNameInput.value = file.name.replace('.pdf', '').replace(/\s+/g, '_');
             }
             
+            // Load saved session for this PDF
+            loadSession();
+            
             // Show editor sidebar
             uploadPanel.style.display = 'none';
             editorControls.style.display = 'flex';
@@ -149,6 +166,8 @@ function resetState() {
     horizontalSplits = [[], [], [], [], []];
     crops = [];
     zoomScale = 1.0;
+    historyStack = [JSON.stringify(horizontalSplits)];
+    redoStack = [];
     updateZoomDisplay();
     updateCoordinateLabels();
 }
@@ -276,6 +295,51 @@ function renderHorizontalSplits() {
             splitWrapper.appendChild(splitLine);
             splitWrapper.appendChild(deleteBtn);
             
+            // Drag split line event listener
+            splitWrapper.addEventListener('mousedown', (e) => {
+                if (e.target.closest('.delete-line-btn')) return;
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const overlayRect = interactiveOverlay.getBoundingClientRect();
+                
+                function onMouseMove(moveEvent) {
+                    const currentY = moveEvent.clientY - overlayRect.top;
+                    let newYPct = (currentY / overlayRect.height) * 100;
+                    
+                    // Constrain bounds
+                    newYPct = Math.max(0.5, Math.min(99.5, newYPct));
+                    
+                    // Update value in array
+                    const curIdx = horizontalSplits[colIdx].indexOf(yPct);
+                    if (curIdx !== -1) {
+                        horizontalSplits[colIdx][curIdx] = newYPct;
+                        yPct = newYPct; // update local variable for next moves
+                        
+                        // Keep splits sorted
+                        horizontalSplits[colIdx].sort((a, b) => a - b);
+                        
+                        // Update visual coordinates of this wrapper directly for performance
+                        splitWrapper.style.top = `${newYPct}%`;
+                        
+                        renderSegments(); // Re-highlight crop segments in real-time
+                    }
+                }
+                
+                function onMouseUp() {
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                    
+                    // Full render to clean up and sort
+                    renderHorizontalSplits();
+                    renderSegments();
+                    pushHistory(); // Save action to history & local session
+                }
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+            
             // Double click to delete
             splitWrapper.addEventListener('dblclick', (e) => {
                 e.stopPropagation();
@@ -366,6 +430,7 @@ document.addEventListener('mouseup', () => {
         const guideEl = document.getElementById(`guideV${draggingIdx}`);
         if (guideEl) guideEl.classList.remove('dragging');
         draggingIdx = null;
+        saveSession();
     }
 });
 
@@ -429,6 +494,7 @@ interactiveOverlay.addEventListener('click', (e) => {
         horizontalSplits[colIdx].sort((a, b) => a - b);
         renderHorizontalSplits();
         renderSegments();
+        pushHistory();
     }
 });
 
@@ -446,11 +512,11 @@ prevPageBtn.addEventListener('click', () => {
     if (currentPage > 1) {
         currentPage--;
         currentPageNumEl.textContent = currentPage;
-        // Keep lines layout but clean splits for new page?
-        // Let's clear horizontal splits because each page has different content, 
-        // but keep vertical guides as they usually align to columns on all pages.
         horizontalSplits = [[], [], [], [], []];
+        historyStack = [JSON.stringify(horizontalSplits)];
+        redoStack = [];
         renderCurrentPage();
+        saveSession();
     }
 });
 
@@ -459,7 +525,10 @@ nextPageBtn.addEventListener('click', () => {
         currentPage++;
         currentPageNumEl.textContent = currentPage;
         horizontalSplits = [[], [], [], [], []];
+        historyStack = [JSON.stringify(horizontalSplits)];
+        redoStack = [];
         renderCurrentPage();
+        saveSession();
     }
 });
 
@@ -581,6 +650,8 @@ function showPreviewModal() {
     renderPreviewGrid();
 }
 
+let draggedCardId = null;
+
 function renderPreviewGrid() {
     previewGrid.innerHTML = '';
     cropCountText.textContent = crops.length;
@@ -604,6 +675,7 @@ function renderPreviewGrid() {
         const card = document.createElement('div');
         card.className = 'crop-card';
         card.dataset.id = crop.id;
+        card.setAttribute('draggable', 'true');
         
         card.innerHTML = `
             <div class="crop-card-select">
@@ -646,6 +718,55 @@ function renderPreviewGrid() {
         // Checkbox toggle action
         card.querySelector('.crop-select-cb').addEventListener('change', () => {
             updateMergeButtonState();
+        });
+        
+        // Drag and Drop reordering events
+        card.addEventListener('dragstart', (e) => {
+            draggedCardId = crop.id;
+            card.classList.add('dragging-card');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        
+        card.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            card.classList.add('drag-over-card');
+        });
+        
+        card.addEventListener('dragleave', () => {
+            card.classList.remove('drag-over-card');
+        });
+        
+        card.addEventListener('drop', (e) => {
+            e.preventDefault();
+            card.classList.remove('drag-over-card');
+            
+            if (draggedCardId && draggedCardId !== crop.id) {
+                const dragIndex = crops.findIndex(c => c.id === draggedCardId);
+                const targetIndex = crops.findIndex(c => c.id === crop.id);
+                
+                if (dragIndex !== -1 && targetIndex !== -1) {
+                    const [movedCrop] = crops.splice(dragIndex, 1);
+                    crops.splice(targetIndex, 0, movedCrop);
+                    
+                    // Re-number remaining crops if auto-number is enabled
+                    const autoNumber = autoNumberToggle.checked;
+                    if (autoNumber) {
+                        const baseNamePrefix = baseFileNameInput.value.trim() || 'sol';
+                        const startNum = parseInt(startNumberInput.value) || 1;
+                        crops.forEach((c, idx) => {
+                            const paddedCounter = String(startNum + idx).padStart(Math.max(2, String(startNum).length), '0');
+                            c.name = `${baseNamePrefix}${paddedCounter}.png`;
+                        });
+                    }
+                    
+                    renderPreviewGrid();
+                }
+            }
+        });
+        
+        card.addEventListener('dragend', () => {
+            card.classList.remove('dragging-card');
+            draggedCardId = null;
         });
         
         previewGrid.appendChild(card);
@@ -881,6 +1002,7 @@ document.querySelectorAll('.quality-btn').forEach(btn => {
         document.querySelectorAll('.quality-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         exportScale = parseFloat(btn.dataset.scale);
+        saveSession();
     });
 });
 
@@ -895,13 +1017,316 @@ interactiveOverlay.addEventListener('wheel', (e) => {
                 zoomScale = Math.min(zoomScale + 0.1, 4.0);
                 updateZoomDisplay();
                 renderCurrentPage();
+                saveSession();
             }
         } else {
             if (zoomScale > 0.5) {
                 zoomScale = Math.max(zoomScale - 0.1, 0.5);
                 updateZoomDisplay();
                 renderCurrentPage();
+                saveSession();
             }
         }
     }
 }, { passive: false });
+
+// --- History & Session Persistence ---
+
+function pushHistory() {
+    const stateCopy = JSON.stringify(horizontalSplits);
+    if (historyStack.length === 0 || historyStack[historyStack.length - 1] !== stateCopy) {
+        historyStack.push(stateCopy);
+        if (historyStack.length > 50) historyStack.shift();
+        redoStack = [];
+    }
+    saveSession();
+}
+
+function undo() {
+    if (historyStack.length > 1) {
+        const currentState = historyStack.pop();
+        redoStack.push(currentState);
+        
+        const previousState = historyStack[historyStack.length - 1];
+        horizontalSplits = JSON.parse(previousState);
+        
+        renderHorizontalSplits();
+        renderSegments();
+        saveSession();
+    } else if (historyStack.length === 1) {
+        const currentState = historyStack.pop();
+        redoStack.push(currentState);
+        
+        horizontalSplits = [[], [], [], [], []];
+        renderHorizontalSplits();
+        renderSegments();
+        saveSession();
+    }
+}
+
+function redo() {
+    if (redoStack.length > 0) {
+        const nextState = redoStack.pop();
+        historyStack.push(nextState);
+        
+        horizontalSplits = JSON.parse(nextState);
+        renderHorizontalSplits();
+        renderSegments();
+        saveSession();
+    }
+}
+
+function saveSession() {
+    if (!pdfFileName) return;
+    const sessionData = {
+        verticalLines,
+        horizontalSplits,
+        currentPage,
+        zoomScale,
+        exportScale,
+        baseName: baseFileNameInput ? baseFileNameInput.value : '',
+        startNumber: startNumberInput ? startNumberInput.value : '1',
+        autoNumber: autoNumberToggle ? autoNumberToggle.checked : true
+    };
+    localStorage.setItem(`pdf_crop_session_${pdfFileName}`, JSON.stringify(sessionData));
+}
+
+function loadSession() {
+    if (!pdfFileName) return;
+    const saved = localStorage.getItem(`pdf_crop_session_${pdfFileName}`);
+    if (saved) {
+        try {
+            const sessionData = JSON.parse(saved);
+            verticalLines = sessionData.verticalLines || [20, 40, 60, 80];
+            horizontalSplits = sessionData.horizontalSplits || [[], [], [], [], []];
+            currentPage = sessionData.currentPage || 1;
+            zoomScale = sessionData.zoomScale || 1.0;
+            exportScale = sessionData.exportScale || 3.0;
+            
+            if (baseFileNameInput && sessionData.baseName !== undefined) {
+                baseFileNameInput.value = sessionData.baseName;
+            }
+            if (startNumberInput && sessionData.startNumber !== undefined) {
+                startNumberInput.value = sessionData.startNumber;
+            }
+            if (autoNumberToggle && sessionData.autoNumber !== undefined) {
+                autoNumberToggle.checked = sessionData.autoNumber;
+            }
+            
+            // Sync UI
+            currentPageNumEl.textContent = currentPage;
+            updateZoomDisplay();
+            updateVerticalGuides();
+            
+            // Update quality buttons active class
+            document.querySelectorAll('.quality-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (parseFloat(btn.dataset.scale) === exportScale) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // Initialize history stack
+            historyStack = [JSON.stringify(horizontalSplits)];
+            redoStack = [];
+        } catch(e) {
+            console.error('Error restoring session:', e);
+        }
+    }
+}
+
+// --- Layout Profiles Manager ---
+
+function loadProfilesFromStorage() {
+    const savedProfiles = localStorage.getItem('pdf_crop_profiles');
+    if (savedProfiles) {
+        try {
+            profiles = JSON.parse(savedProfiles);
+        } catch(e) {
+            console.error(e);
+        }
+    }
+    renderProfileOptions();
+}
+
+function saveProfilesToStorage() {
+    localStorage.setItem('pdf_crop_profiles', JSON.stringify(profiles));
+}
+
+function renderProfileOptions() {
+    if (!profileSelect) return;
+    profileSelect.innerHTML = '';
+    Object.keys(profiles).forEach(pName => {
+        const option = document.createElement('option');
+        option.value = pName;
+        option.textContent = pName === 'default' ? 'Default 5 Columns' : pName;
+        profileSelect.appendChild(option);
+    });
+}
+
+// Profile Events
+if (profileSelect) {
+    profileSelect.addEventListener('change', () => {
+        const selected = profileSelect.value;
+        if (profiles[selected]) {
+            verticalLines = [...profiles[selected]];
+            updateVerticalGuides();
+            renderHorizontalSplits();
+            renderSegments();
+            saveSession();
+        }
+    });
+}
+
+if (saveProfileBtn) {
+    saveProfileBtn.addEventListener('click', () => {
+        const name = prompt('Enter a name for this vertical layout profile:');
+        if (!name) return;
+        const cleanName = name.trim();
+        if (cleanName === 'default') {
+            alert('Cannot overwrite the default profile.');
+            return;
+        }
+        profiles[cleanName] = [...verticalLines];
+        saveProfilesToStorage();
+        renderProfileOptions();
+        profileSelect.value = cleanName;
+    });
+}
+
+if (deleteProfileBtn) {
+    deleteProfileBtn.addEventListener('click', () => {
+        const selected = profileSelect.value;
+        if (selected === 'default') {
+            alert('Cannot delete the default profile.');
+            return;
+        }
+        if (confirm(`Are you sure you want to delete profile "${selected}"?`)) {
+            delete profiles[selected];
+            saveProfilesToStorage();
+            renderProfileOptions();
+            profileSelect.value = 'default';
+            profileSelect.dispatchEvent(new Event('change'));
+        }
+    });
+}
+
+// --- PDF Compilation (jsPDF) ---
+
+async function compileCropsToPdf() {
+    if (crops.length === 0) return;
+    showLoader('Generating PDF booklet...');
+    
+    try {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'px',
+            format: 'a4'
+        });
+        
+        const a4W = pdf.internal.pageSize.getWidth();
+        const a4H = pdf.internal.pageSize.getHeight();
+        const margin = 20; // margins
+        const contentW = a4W - (margin * 2);
+        
+        const imagePromises = crops.map(crop => {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve({ img, crop });
+                img.onerror = () => reject(new Error('Failed to load crop for PDF'));
+                img.src = crop.dataUrl;
+            });
+        });
+        
+        const loadedImages = await Promise.all(imagePromises);
+        
+        loadedImages.forEach((item, index) => {
+            if (index > 0) {
+                pdf.addPage();
+            }
+            
+            const imgW = item.crop.width;
+            const imgH = item.crop.height;
+            
+            // Scale to fit content width
+            const scale = contentW / imgW;
+            const drawW = contentW;
+            const drawH = imgH * scale;
+            
+            // Center vertically if it fits inside A4 page height
+            let drawY = margin;
+            if (drawH < a4H - (margin * 2)) {
+                drawY = Math.round((a4H - drawH) / 2);
+            }
+            
+            pdf.addImage(item.dataUrl || item.img, 'PNG', margin, drawY, drawW, drawH, undefined, 'FAST');
+        });
+        
+        const pdfBaseName = baseFileNameInput.value.trim() || 'crops';
+        pdf.save(`${pdfBaseName}_booklet.pdf`);
+        hideLoader();
+    } catch (err) {
+        hideLoader();
+        alert('PDF Generation failed: ' + err.message);
+    }
+}
+
+if (downloadPdfBtn) {
+    downloadPdfBtn.addEventListener('click', () => {
+        compileCropsToPdf();
+    });
+}
+
+// --- Keyboard Shortcuts & Input listeners ---
+
+document.addEventListener('keydown', (e) => {
+    // Ignore keydown if typing inside inputs
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+        return;
+    }
+    
+    // Page Navigation
+    if (e.key === 'ArrowRight') {
+        nextPageBtn.click();
+    }
+    if (e.key === 'ArrowLeft') {
+        prevPageBtn.click();
+    }
+    
+    // Enter to preview
+    if (e.key === 'Enter') {
+        generateCropsBtn.click();
+    }
+    
+    // Escape to close preview modal
+    if (e.key === 'Escape') {
+        if (previewOverlay.style.display === 'flex') {
+            backToEditorBtn.click();
+        }
+    }
+    
+    // Undo / Redo
+    if (e.ctrlKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        undo();
+    }
+    if (e.ctrlKey && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+    }
+});
+
+// Naming Inputs Listeners for Session Persistence
+if (baseFileNameInput) {
+    baseFileNameInput.addEventListener('input', () => saveSession());
+}
+if (startNumberInput) {
+    startNumberInput.addEventListener('input', () => saveSession());
+}
+if (autoNumberToggle) {
+    autoNumberToggle.addEventListener('change', () => saveSession());
+}
+
+// Load profiles from storage initially
+loadProfilesFromStorage();

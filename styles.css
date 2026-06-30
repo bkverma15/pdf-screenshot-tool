@@ -1061,3 +1061,30 @@ h1, h2, h3, h4, .logo {
     accent-color: var(--primary);
     cursor: pointer;
 }
+
+/* Drag and Drop Card styling */
+.crop-card.dragging-card {
+    opacity: 0.4;
+    border: 2px dashed var(--primary);
+}
+
+.crop-card.drag-over-card {
+    border: 2px solid var(--primary);
+    transform: translateY(-4px);
+    box-shadow: 0 10px 20px rgba(139, 92, 246, 0.2);
+}
+
+/* Credits for Nobita styling */
+.credits-nobita {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.credits-nobita span {
+    color: var(--primary);
+    font-weight: 600;
+}
