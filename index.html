@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Screenshot & Crop Tool</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- JSZip -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="stylesheet" href="styles.css?v=2.4">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Controls -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i data-lucide="scissors" class="logo-icon"></i>
+                    <span>PDF CropSnap</span>
+                </div>
+                <p class="tagline">Extract high-quality PNG segments from PDF columns</p>
+            </div>
+
+            <!-- Upload Panel -->
+            <div class="card upload-card" id="uploadPanel">
+                <div class="file-dropzone" id="dropzone">
+                    <i data-lucide="upload-cloud" class="drop-icon"></i>
+                    <p class="drop-text">Drag & drop your PDF here</p>
+                    <span class="or-divider">or</span>
+                    <button class="btn btn-secondary btn-sm" id="browseBtn">
+                        <i data-lucide="file-plus"></i> Browse File
+                    </button>
+                    <input type="file" id="pdfFileInput" accept="application/pdf" style="display: none;">
+                </div>
+            </div>
+
+            <!-- Editor Controls (Hidden by default) -->
+            <div class="editor-controls" id="editorControls" style="display: none;">
+                <!-- PDF Metadata -->
+                <div class="card info-card">
+                    <h3 class="card-title"><i data-lucide="file-text"></i> File Information</h3>
+                    <div class="info-row">
+                        <span class="info-label">Name:</span>
+                        <span class="info-val text-truncate" id="pdfFileName">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Pages:</span>
+                        <span class="info-val" id="pdfPageCount">-</span>
+                    </div>
+                </div>
+
+                <!-- Page Navigator -->
+                <div class="card control-card">
+                    <h3 class="card-title"><i data-lucide="navigation"></i> Page Navigation</h3>
+                    <div class="page-nav-controls">
+                        <button class="btn btn-icon btn-sm" id="prevPageBtn" title="Previous Page">
+                            <i data-lucide="chevron-left"></i>
+                        </button>
+                        <span class="page-display">
+                            Page <span id="currentPageNum">1</span> / <span id="totalPagesNum">1</span>
+                        </span>
+                        <button class="btn btn-icon btn-sm" id="nextPageBtn" title="Next Page">
+                            <i data-lucide="chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Column Adjustments -->
+                <div class="card control-card">
+                    <div class="card-title-row">
+                        <h3 class="card-title"><i data-lucide="columns"></i> Column Guides</h3>
+                        <button class="btn btn-text btn-xs" id="resetGuidesBtn" title="Reset to equal width columns">
+                            <i data-lucide="refresh-cw"></i> Reset
+                        </button>
+                    </div>
+                    <p class="control-desc">Drag the vertical guides on the PDF to align them with your document's columns.</p>
+                    <div class="guide-coordinates">
+                        <div class="coord-item"><span>Col 1</span><span id="coordVal0">20%</span></div>
+                        <div class="coord-item"><span>Col 2</span><span id="coordVal1">40%</span></div>
+                        <div class="coord-item"><span>Col 3</span><span id="coordVal2">60%</span></div>
+                        <div class="coord-item"><span>Col 4</span><span id="coordVal3">80%</span></div>
+                    </div>
+                </div>
+
+                <!-- Export Resolution Selector -->
+                <div class="card control-card">
+                    <h3 class="card-title"><i data-lucide="sliders"></i> Export Resolution</h3>
+                    <p class="control-desc">Choose the quality / DPI of the exported PNG images.</p>
+                    <div class="quality-selector">
+                        <button class="quality-btn" data-scale="1.5">1.5x<span>Low</span></button>
+                        <button class="quality-btn" data-scale="2.0">2.0x<span>Med</span></button>
+                        <button class="quality-btn active" data-scale="3.0">3.0x<span>High</span></button>
+                        <button class="quality-btn" data-scale="4.0">4.0x<span>Ultra</span></button>
+                    </div>
+                </div>
+
+                <!-- File Naming Control -->
+                <div class="card control-card">
+                    <h3 class="card-title"><i data-lucide="type"></i> File Naming</h3>
+                    <p class="control-desc">Set prefix for auto-numbering or leave empty to use PDF name.</p>
+                    <div class="naming-controls">
+                        <input type="text" id="baseFileNameInput" placeholder="Base name (e.g. sol)" class="form-input">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="autoNumberToggle" checked>
+                            <span class="checkmark"></span>
+                            Auto-number (01, 02...)
+                        </label>
+                        <div class="start-number-row">
+                            <span class="start-label">Start Number:</span>
+                            <input type="number" id="startNumberInput" value="1" min="1" class="form-input start-num-input">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Instructions -->
+                <div class="card instruction-card">
+                    <h3 class="card-title"><i data-lucide="help-circle"></i> Instructions</h3>
+                    <ul class="steps-list">
+                        <li><span class="step-num">1</span> Drag the <strong class="color-primary">vertical lines</strong> to define the columns.</li>
+                        <li><span class="step-num">2</span> Click inside columns to place <strong class="color-secondary">horizontal cut lines</strong>.</li>
+                        <li><span class="step-num">3</span> Double-click a cut line (or click its delete button) to remove it.</li>
+                        <li><span class="step-num">4</span> Click <strong class="color-success">Generate Preview</strong> below to crop and review PNGs.</li>
+                    </ul>
+                </div>
+
+                <!-- Action Button -->
+                <button class="btn btn-primary btn-lg w-full" id="generateCropsBtn">
+                    <i data-lucide="check-square"></i> Generate Preview
+                </button>
+            </div>
+            
+            <div class="sidebar-footer">
+                <p>Created by Antigravity AI</p>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="workspace">
+            <!-- Empty State -->
+            <div class="workspace-empty" id="workspaceEmpty">
+                <div class="empty-state-content">
+                    <div class="pulse-circle">
+                        <i data-lucide="file-up" class="pulse-icon"></i>
+                    </div>
+                    <h2>Welcome to PDF CropSnap</h2>
+                    <p>Upload a PDF file to begin cropping sections into high-quality images.</p>
+                </div>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div class="workspace-loader" id="workspaceLoader" style="display: none;">
+                <div class="loader-content">
+                    <div class="spinner"></div>
+                    <p id="loaderMessage">Rendering PDF Page...</p>
+                </div>
+            </div>
+
+            <!-- PDF Editor Interface -->
+            <div class="editor-interface" id="editorInterface" style="display: none;">
+                <!-- Floating Zoom Toolbar -->
+                <div class="floating-toolbar" id="floatingToolbar">
+                    <button class="btn btn-icon btn-sm" id="zoomOutBtn" title="Zoom Out">
+                        <i data-lucide="zoom-out"></i>
+                    </button>
+                    <span class="zoom-display" id="zoomDisplayVal">100%</span>
+                    <button class="btn btn-icon btn-sm" id="zoomInBtn" title="Zoom In">
+                        <i data-lucide="zoom-in"></i>
+                    </button>
+                    <div class="toolbar-divider"></div>
+                    <button class="btn btn-icon btn-sm" id="zoomResetBtn" title="Fit Screen / Reset Zoom">
+                        <i data-lucide="maximize-2"></i>
+                    </button>
+                </div>
+
+                <div class="editor-viewport" id="viewport">
+                    <div class="canvas-container" id="canvasContainer">
+                        <!-- Render Canvas -->
+                        <canvas id="pdfDisplayCanvas"></canvas>
+                        
+                        <!-- Interactive Guides & Click Overlay -->
+                        <div class="interactive-overlay" id="interactiveOverlay">
+                            <!-- Vertical Guidelines -->
+                            <div class="guide-vertical" id="guideV0" data-index="0">
+                                <div class="guide-line"></div>
+                                <div class="guide-handle">⋮</div>
+                            </div>
+                            <div class="guide-vertical" id="guideV1" data-index="1">
+                                <div class="guide-line"></div>
+                                <div class="guide-handle">⋮</div>
+                            </div>
+                            <div class="guide-vertical" id="guideV2" data-index="2">
+                                <div class="guide-line"></div>
+                                <div class="guide-handle">⋮</div>
+                            </div>
+                            <div class="guide-vertical" id="guideV3" data-index="3">
+                                <div class="guide-line"></div>
+                                <div class="guide-handle">⋮</div>
+                            </div>
+
+                            <!-- Click Preview Line (follows mouse horizontally) -->
+                            <div class="horizontal-preview-line" id="hPreviewLine" style="display: none;"></div>
+
+                            <!-- Container for user-defined horizontal splits -->
+                            <div class="splits-container" id="splitsContainer"></div>
+
+                            <!-- Container for rendering background highlights of crop areas -->
+                            <div class="segments-container" id="segmentsContainer"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Preview & Export View (Sliding Panel or Full Screen Overlay) -->
+    <div class="preview-overlay" id="previewOverlay" style="display: none;">
+        <div class="preview-modal">
+            <header class="preview-header">
+                <div class="preview-title">
+                    <i data-lucide="eye" class="title-icon"></i>
+                    <div>
+                        <h2>Review Cropped Segments</h2>
+                        <p>Verify screenshots, delete unwanted crops, and download individual files or a ZIP archive.</p>
+                    </div>
+                </div>
+                <div class="preview-actions">
+                    <button class="btn btn-secondary" id="backToEditorBtn">
+                        <i data-lucide="arrow-left"></i> Edit Cuts
+                    </button>
+                    <button class="btn btn-success" id="downloadZipBtn">
+                        <i data-lucide="download"></i> Download All (ZIP)
+                    </button>
+                </div>
+            </header>
+
+            <main class="preview-grid-container">
+                <div class="preview-stats">
+                    <span>Total Crops Generated: <strong id="cropCountText">0</strong></span>
+                    <div class="preview-stats-actions">
+                        <button class="btn btn-secondary btn-xs" id="mergeSelectedBtn" disabled>
+                            <i data-lucide="combine"></i> Merge Selected
+                        </button>
+                        <button class="btn btn-text btn-xs color-danger" id="clearAllCropsBtn">
+                            <i data-lucide="trash-2"></i> Discard All
+                        </button>
+                    </div>
+                </div>
+                <div class="preview-grid" id="previewGrid">
+                    <!-- Dynamic preview cards generated here -->
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Hidden Export Canvas for High DPI Rendering -->
+    <canvas id="pdfExportCanvas" style="display: none;"></canvas>
+
+    <script src="app.js?v=2.4"></script>
+</body>
+</html>
