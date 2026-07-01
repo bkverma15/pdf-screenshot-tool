@@ -8,7 +8,7 @@ let pdfFileName = '';
 let currentPage = 1;
 let totalPages = 1;
 let zoomScale = 1.0;
-let exportScale = 3.0;
+let exportScale = 6.0;
 
 // Coordinates are percentages (0 to 100)
 let verticalLines = [20, 40, 60, 80]; 
@@ -140,7 +140,7 @@ function loadPDF(file) {
             
             // Pre-fill base filename input
             if (baseFileNameInput) {
-                baseFileNameInput.value = file.name.replace('.pdf', '').replace(/\s+/g, '_');
+                baseFileNameInput.value = 'sol';
             }
             
             // Load saved session for this PDF

@@ -16,7 +16,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <!-- jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <link rel="stylesheet" href="styles.css?v=2.9">
+    <link rel="stylesheet" href="styles.css?v=3.0">
 </head>
 <body>
     <div class="app-container">
@@ -109,10 +109,10 @@
                     <div class="quality-selector">
                         <button class="quality-btn" data-scale="1.5">1.5x<span>Low</span></button>
                         <button class="quality-btn" data-scale="2.0">2.0x<span>Med</span></button>
-                        <button class="quality-btn active" data-scale="3.0">3.0x<span>High</span></button>
+                        <button class="quality-btn" data-scale="3.0">3.0x<span>High</span></button>
                         <button class="quality-btn" data-scale="4.0">4.0x<span>Ultra</span></button>
                         <button class="quality-btn" data-scale="5.0">5.0x<span>Super</span></button>
-                        <button class="quality-btn" data-scale="6.0">6.0x<span>Max</span></button>
+                        <button class="quality-btn active" data-scale="6.0">6.0x<span>Max</span></button>
                     </div>
                 </div>
 
@@ -121,7 +121,7 @@
                     <h3 class="card-title"><i data-lucide="type"></i> File Naming</h3>
                     <p class="control-desc">Set prefix for auto-numbering or leave empty to use PDF name.</p>
                     <div class="naming-controls">
-                        <input type="text" id="baseFileNameInput" placeholder="Base name (e.g. sol)" class="form-input">
+                        <input type="text" id="baseFileNameInput" value="sol" placeholder="Base name (e.g. sol)" class="form-input">
                         <label class="checkbox-container">
                             <input type="checkbox" id="autoNumberToggle" checked>
                             <span class="checkmark"></span>
@@ -280,6 +280,6 @@
     <!-- Hidden Export Canvas for High DPI Rendering -->
     <canvas id="pdfExportCanvas" style="display: none;"></canvas>
 
-    <script src="app.js?v=2.9"></script>
+    <script src="app.js?v=3.0"></script>
 </body>
 </html>
