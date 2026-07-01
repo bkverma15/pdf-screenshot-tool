@@ -11,7 +11,7 @@ let zoomScale = 1.0;
 let exportScale = 6.0;
 
 // Coordinates are percentages (0 to 100)
-let verticalLines = [20, 40, 60, 80]; 
+let verticalLines = [9, 51, 57, 98]; 
 let horizontalSplits = [[], [], [], [], []]; // 5 columns (index 0 to 4)
 let crops = []; // List of cropped image objects
 
@@ -21,7 +21,7 @@ let redoStack = [];
 
 // Layout Profiles
 let profiles = {
-    'default': [20, 40, 60, 80]
+    'default': [9, 51, 57, 98]
 };
 
 // DOM Elements
@@ -174,7 +174,7 @@ function resetState() {
     } else if (colCount === 4) {
         verticalLines = [25, 50, 75];
     } else {
-        verticalLines = [20, 40, 60, 80];
+        verticalLines = [9, 51, 57, 98];
     }
     
     horizontalSplits = Array.from({ length: colCount }, () => []);
@@ -1143,7 +1143,7 @@ function loadSession() {
     if (saved) {
         try {
             const sessionData = JSON.parse(saved);
-            verticalLines = sessionData.verticalLines || [20, 40, 60, 80];
+            verticalLines = sessionData.verticalLines || [9, 51, 57, 98];
             horizontalSplits = sessionData.horizontalSplits || [[], [], [], [], []];
             currentPage = sessionData.currentPage || 1;
             zoomScale = sessionData.zoomScale || 1.0;
@@ -1407,7 +1407,7 @@ function setColumns(count, resetSplits = true) {
         } else if (count === 4) {
             verticalLines = [25, 50, 75];
         } else {
-            verticalLines = [20, 40, 60, 80];
+            verticalLines = [9, 51, 57, 98];
         }
         
         horizontalSplits = Array.from({ length: count }, () => []);
