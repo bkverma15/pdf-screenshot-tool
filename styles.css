@@ -903,12 +903,13 @@ h1, h2, h3, h4, .logo {
 
 /* Quality Selector */
 .quality-selector {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
     background-color: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border-color);
     border-radius: 10px;
-    padding: 4px;
-    gap: 4px;
+    padding: 6px;
+    gap: 6px;
     margin-top: 8px;
 }
 
